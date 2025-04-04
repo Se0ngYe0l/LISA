@@ -126,7 +126,7 @@ class LISAForCausalLM(LlavaLlamaForCausalLM):
         config,
         **kwargs,
     ):
-        if not hasattr(config, "train_mask_decoder"):
+        if hasattr(config, "train_mask_decoder"):
             config.mm_use_im_start_end = kwargs.pop("use_mm_start_end", True)
             config.mm_vision_tower = kwargs.get(
                 "vision_tower", "openai/clip-vit-large-patch14"

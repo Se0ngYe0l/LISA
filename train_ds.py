@@ -252,11 +252,11 @@ def main(args):
 
     if args.no_eval == False:
         val_dataset = ValDataset(
-            args.dataset_dir,
-            tokenizer,
-            args.vision_tower,
-            args.val_dataset,
-            args.image_size,
+            args.dataset_dir,   # /mnt/e/Task_Infer_VLM/VLM_dataset/
+            tokenizer,          
+            args.vision_tower,  
+            args.val_dataset,   # ReasonSeg|val -> RoboRefit|testA
+            args.image_size,    # 1024
         )
         print(
             f"Training with {len(train_dataset)} examples and validating with {len(val_dataset)} examples."
@@ -527,7 +527,7 @@ def validate(val_loader, model_engine, epoch, writer, args):
 
     model_engine.eval()
 
-    for input_dict in tqdm.tqdm(val_loader):
+    for idx, input_dict in enumerate(tqdm.tqdm(val_loader)):
         torch.cuda.empty_cache()
 
         input_dict = dict_to_cuda(input_dict)
@@ -564,6 +564,12 @@ def validate(val_loader, model_engine, epoch, writer, args):
             union
         ), acc_iou_meter.update(acc_iou, n=masks_list.shape[0])
 
+        # if idx % 2000 == 0 and idx > 0:
+        #     iou_class = intersection_meter.sum / (union_meter.sum + 1e-10)
+        #     ciou = iou_class[1]
+        #     giou = acc_iou_meter.avg[1]
+        #     print(f"[{idx}/{len(val_loader)}] Step giou: {giou:.4f}, ciou: {ciou:.4f}")
+    
     intersection_meter.all_reduce()
     union_meter.all_reduce()
     acc_iou_meter.all_reduce()

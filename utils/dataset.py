@@ -3,6 +3,7 @@ import os
 import random
 
 import cv2
+import json
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -21,6 +22,8 @@ from .reason_seg_dataset import ReasonSegDataset
 from .refer import REFER
 from .refer_seg_dataset import ReferSegDataset
 from .sem_seg_dataset import SemSegDataset
+from .roborefit_dataset import RoboRefitDataset
+from .ocid_vlg_dataset import OCIDVLGDataset
 from .utils import (DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN,
                     DEFAULT_IMAGE_TOKEN)
 from .vqa_dataset import VQADataset
@@ -258,6 +261,36 @@ class HybridDataset(torch.utils.data.Dataset):
                         explanatory,
                     )
                 )
+            elif dataset == "roborefit":
+                self.all_datasets.append(
+                    RoboRefitDataset(
+                        base_image_dir,
+                        tokenizer,
+                        vision_tower,
+                        samples_per_epoch,
+                        precision,
+                        image_size,
+                        num_classes_per_sample,
+                        exclude_val,
+                        reason_seg_data,
+                        explanatory,
+                    )
+                )
+            elif dataset == "ocid_vlg":
+                self.all_datasets.append(
+                    OCIDVLGDataset(
+                        base_image_dir,
+                        tokenizer,
+                        vision_tower,
+                        samples_per_epoch,
+                        precision,
+                        image_size,
+                        num_classes_per_sample,
+                        exclude_val,
+                        reason_seg_data,
+                        explanatory,
+                    )
+                )
 
     def __len__(self):
         return self.samples_per_epoch
@@ -287,11 +320,19 @@ class ValDataset(torch.utils.data.Dataset):
         splits = val_dataset.split("|")
         if len(splits) == 2:
             ds, split = splits
-            images = glob.glob(
-                os.path.join(self.base_image_dir, "reason_seg", ds, split, "*.jpg")
-            )
-            self.images = images
-            self.data_type = "reason_seg"
+            if ds == "ReasonSeg":
+                images = glob.glob(
+                    os.path.join(self.base_image_dir, "reason_seg", ds, split, "*.jpg")
+                )
+                self.images = images
+                self.data_type = "reason_seg"
+            elif ds == "RoboRefit":
+                self.json_data = json.load(open(os.path.join(self.base_image_dir, ds, split, "roborefit_" + split + '.json'), 'r', encoding="utf-8"))
+                self.img_path = os.path.join(self.base_image_dir, ds, split, "image")
+                self.data_type = "roborefit"
+            elif ds == "OCID_VLG":
+                self.json_data = json.load(open(os.path.join(self.base_image_dir, ds, "refer", "multiple", split + '_expressions.json'), 'r', encoding="utf-8"))
+                self.data_type = "ocid_vlg"
         elif len(splits) == 3:
             ds, splitBy, split = splits
             refer_api = REFER(self.base_image_dir, ds, splitBy)
@@ -335,6 +376,10 @@ class ValDataset(torch.utils.data.Dataset):
     def __len__(self):
         if self.data_type == "refer_seg":
             return len(self.refer_seg_ds["images"])
+        elif self.data_type == "roborefit":
+            return len(os.listdir(self.img_path))
+        elif self.data_type == "ocid_vlg":
+            return len(self.json_data["data"])
         else:
             return len(self.images)
 
@@ -377,6 +422,32 @@ class ValDataset(torch.utils.data.Dataset):
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             is_sentence = False
+        elif self.data_type == "roborefit":
+            data_info = self.json_data[idx]
+            image_path = data_info['rgb_path'].replace('\\', '/').replace('final_dataset','RoboRefit')
+            mask_path = data_info['mask_path'].replace('\\', '/').replace('final_dataset','RoboRefit')
+            image_path = os.path.join(self.base_image_dir, image_path)
+            mask_path = os.path.join(self.base_image_dir, mask_path)
+
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            mask_img = cv2.imread(mask_path)
+
+            sampled_sents = [data_info['text']]
+            is_sentence = True
+        elif self.data_type == "ocid_vlg":
+            data_info = self.json_data["data"][idx]
+            seq_path, im_name = data_info['image_filename'].split(',')
+            image_path = os.path.join(self.base_image_dir, self.ds, seq_path, "rgb", im_name)
+            mask_path = os.path.join(self.base_image_dir, self.ds, seq_path, "seg_mask_instances_combi", im_name)
+
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            mask_img = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
+            
+            objID = data_info['answer']
+            sampled_sents = [data_info['question']]
+            is_sentence = True
         else:
             image_path = self.images[idx]
             image = cv2.imread(image_path)
@@ -444,11 +515,21 @@ class ValDataset(torch.utils.data.Dataset):
                 )  # sometimes there are multiple binary map (corresponding to multiple segs)
                 m = m.astype(np.uint8)  # convert to np.uint8
                 masks.append(m)
+        elif self.data_type == "roborefit":
+            if mask_img.shape[-1] == 1:
+                masks = np.expand_dims(mask_img, 0)
+            else:
+                mask_img = np.sum(mask_img, -1)
+                mask_img[mask_img>0] = 1
+                masks = np.expand_dims(mask_img, 0)
+        elif self.data_type == "ocid_vlg":
+            masks = np.where(mask_img == objID, True, False)
+            masks = np.expand_dims(masks, 0)
         else:
             masks = [mask_json]
 
         masks = np.stack(masks, axis=0)
-        masks = torch.from_numpy(masks)
+        masks = torch.from_numpy(masks.astype(np.float32))
         labels = torch.ones(masks.shape[1], masks.shape[2]) * self.ignore_label
         inference = True
 
