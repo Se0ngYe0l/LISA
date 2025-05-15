@@ -377,7 +377,7 @@ class ValDataset(torch.utils.data.Dataset):
         if self.data_type == "refer_seg":
             return len(self.refer_seg_ds["images"])
         elif self.data_type == "roborefit":
-            return len(os.listdir(self.img_path))
+            return len(self.json_data)
         elif self.data_type == "ocid_vlg":
             return len(self.json_data["data"])
         else:
