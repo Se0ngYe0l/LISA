@@ -14,12 +14,16 @@ from model.llava.mm_utils import tokenizer_image_token
 from model.segment_anything.utils.transforms import ResizeLongestSide
 from utils.utils import (DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN,
                          DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX)
+import time
 
+from tome.openclip import patch_openclip
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description="LISA chat")
     parser.add_argument("--version", default="xinlai/LISA-13B-llama2-v1")
     parser.add_argument("--vis_save_path", default="./vis_output", type=str)
+    parser.add_argument("--image_path", default="/root/LISA/0000814.png", type=str)
+    parser.add_argument("--input", default="Put the yellow cone on top of the tennis ball.", type=str)
     parser.add_argument(
         "--precision",
         default="bf16",
@@ -147,15 +151,27 @@ def main(args):
     vision_tower.to(device=args.local_rank)
 
     clip_image_processor = CLIPImageProcessor.from_pretrained(model.config.vision_tower)
+    # print(clip_image_processor)
+    # exit()
+    # for module in clip_image_processor.modules():
+    #     print(module)
+    # exit()
+    
     transform = ResizeLongestSide(args.image_size)
 
     model.eval()
+
+    patch_openclip(model.model.vision_tower.vision_tower.vision_model)
+
+    model.model.vision_tower.vision_tower.vision_model.r = 4
+
 
     while True:
         conv = conversation_lib.conv_templates[args.conv_type].copy()
         conv.messages = []
 
-        prompt = input("Please input your prompt: ")
+        #prompt = input("Please input your prompt: ")
+        prompt = args.input
         prompt = DEFAULT_IMAGE_TOKEN + "\n" + prompt
         if args.use_mm_start_end:
             replace_token = (
@@ -167,7 +183,8 @@ def main(args):
         conv.append_message(conv.roles[1], "")
         prompt = conv.get_prompt()
 
-        image_path = input("Please input the image path: ")
+        #image_path = input("Please input the image path: ")
+        image_path = args.image_path
         if not os.path.exists(image_path):
             print("File not found in {}".format(image_path))
             continue
@@ -208,6 +225,8 @@ def main(args):
         input_ids = tokenizer_image_token(prompt, tokenizer, return_tensors="pt")
         input_ids = input_ids.unsqueeze(0).cuda()
 
+        print("start time")
+        start_time = time.time()
         output_ids, pred_masks = model.evaluate(
             image_clip,
             image,
@@ -217,6 +236,7 @@ def main(args):
             max_new_tokens=512,
             tokenizer=tokenizer,
         )
+        print(f"[TIME] VLM Inference : {time.time() - start_time:.3f} sec")
         output_ids = output_ids[0][output_ids[0] != IMAGE_TOKEN_INDEX]
 
         text_output = tokenizer.decode(output_ids, skip_special_tokens=False)
@@ -248,6 +268,7 @@ def main(args):
             cv2.imwrite(save_path, save_img)
             print("{} has been saved.".format(save_path))
 
+        break
 
 if __name__ == "__main__":
     main(sys.argv[1:])
