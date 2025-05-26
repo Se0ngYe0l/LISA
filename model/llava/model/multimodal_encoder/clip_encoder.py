@@ -17,7 +17,6 @@ class CLIPVisionTower(nn.Module):
             self.load_model()
         else:
             self.cfg_only = CLIPVisionConfig.from_pretrained(self.vision_tower_name)
-
     def load_model(self):
         self.image_processor = CLIPImageProcessor.from_pretrained(
             self.vision_tower_name
@@ -30,6 +29,9 @@ class CLIPVisionTower(nn.Module):
 
     def feature_select(self, image_forward_outs):
         image_features = image_forward_outs.hidden_states[self.select_layer]
+        if image_features.dim() == 2:
+            image_features = image_features.unsqueeze(0)
+
         if self.select_feature == "patch":
             image_features = image_features[:, 1:]
         elif self.select_feature == "cls_patch":

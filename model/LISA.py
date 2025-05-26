@@ -364,22 +364,23 @@ class LISAForCausalLM(LlavaLlamaForCausalLM):
             output_hidden_states = outputs.hidden_states[-1]
             output_ids = outputs.sequences
 
-            seg_token_mask = output_ids[:, 1:] == self.seg_token_idx
-            # hack for IMAGE_TOKEN_INDEX (we suppose that there is only one image, and it is in the front)
-            seg_token_mask = torch.cat(
-                [
-                    torch.zeros((seg_token_mask.shape[0], 255)).bool().cuda(),
-                    seg_token_mask,
-                ],
-                dim=1,
-            )
-
             hidden_states = []
 
             assert len(self.model.text_hidden_fcs) == 1
             hidden_states.append(self.model.text_hidden_fcs[0](output_hidden_states))
 
             last_hidden_state = torch.stack(hidden_states, dim=-1).sum(dim=-1)
+
+            seg_token_mask = output_ids[:, 1:] == self.seg_token_idx
+            # hack for IMAGE_TOKEN_INDEX (we suppose that there is only one image, and it is in the front)
+            seg_token_mask = torch.cat(
+                [
+                    torch.zeros((seg_token_mask.shape[0], last_hidden_state.shape[1] - seg_token_mask.shape[1])).bool().cuda(),
+                    seg_token_mask,
+                ],
+                dim=1,
+            )
+
             pred_embeddings = last_hidden_state[seg_token_mask]
 
             seg_token_counts = seg_token_mask.int().sum(-1)  # [bs, ]

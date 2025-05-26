@@ -20,9 +20,9 @@ from tome.openclip import patch_openclip
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description="LISA chat")
-    parser.add_argument("--version", default="xinlai/LISA-13B-llama2-v1")
+    parser.add_argument("--version", default="xinlai/LISA-7B-v1")
     parser.add_argument("--vis_save_path", default="./vis_output", type=str)
-    parser.add_argument("--image_path", default="/root/LISA/0000814.png", type=str)
+    parser.add_argument("--image_path", default="/home/seongyeol/LISA/0000814.png", type=str)
     parser.add_argument("--input", default="Put the yellow cone on top of the tennis ball.", type=str)
     parser.add_argument(
         "--precision",

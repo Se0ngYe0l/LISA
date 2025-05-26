@@ -30,8 +30,8 @@ class ToMeResidualAttentionBlock(nn.Module):
             x, self._tome_info["size"] = merge_wavg(merge, x, self._tome_info["size"])
 
         x = x + self.mlp(self.layer_norm2(x))
-        print("ToMe block output shape:", x.shape)
-
+        #print("ToMe block output shape:", x.shape)
+        #print(x.shape)
         return x
 
 
@@ -63,6 +63,8 @@ class ToMeAttention(nn.Module):
             x = x.unsqueeze(0)
 
         B, N, C = x.shape
+        assert C == self.embed_dim, f"Input channel mismatch: got {C}, expected {self.embed_dim}"
+
         q = self.q_proj(x).reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.k_proj(x).reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)
         v = self.v_proj(x).reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)

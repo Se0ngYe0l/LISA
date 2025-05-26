@@ -25,7 +25,7 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description="LISA Model Training")
     parser.add_argument("--local_rank", default=0, type=int, help="node rank")
     parser.add_argument(
-        "--version", default="liuhaotian/llava-llama-2-13b-chat-lightning-preview"
+        "--version", default="xinlai/LISA-7B-v1"
     )
     parser.add_argument("--vis_save_path", default="./vis_output", type=str)
     parser.add_argument(
@@ -88,7 +88,7 @@ def parse_args(args):
     parser.add_argument("--exclude_val", action="store_true", default=False)
     parser.add_argument("--no_eval", action="store_true", default=False)
     parser.add_argument("--eval_only", action="store_true", default=False)
-    parser.add_argument("--vision_pretrained", default="PATH_TO_SAM_ViT-H", type=str)
+    parser.add_argument("--vision_pretrained", default="/home/seongyeol/LISA/sam_vit_h_4b8939.pth", type=str)
     parser.add_argument("--out_dim", default=256, type=int)
     parser.add_argument("--resume", default="", type=str)
     parser.add_argument("--print_freq", default=1, type=int)
@@ -151,6 +151,8 @@ def main(args):
     model = LISAForCausalLM.from_pretrained(
         args.version, torch_dtype=torch_dtype, low_cpu_mem_usage=True, **model_args
     )
+    #print(model.model.visual_model.state_dict().keys())
+    #exit()
     model.config.eos_token_id = tokenizer.eos_token_id
     model.config.bos_token_id = tokenizer.bos_token_id
     model.config.pad_token_id = tokenizer.pad_token_id
