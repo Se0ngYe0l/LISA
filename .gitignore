@@ -4,6 +4,6 @@ runs/
 lisa_model/
 sam_vit_h_4b8939.pth
 new_model/
-
+vis_output/
 tent.py
 tent.ipynb

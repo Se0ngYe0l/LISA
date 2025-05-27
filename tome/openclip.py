@@ -111,7 +111,7 @@ def make_tome_class(transformer_class):
     return ToMeVisionTransformer
 
 
-def patch_openclip(model, trace_source: bool = False, prop_attn: bool = True):
+def patch_openclip(model, start_idx, end_idx, trace_source: bool = False, prop_attn: bool = True):
     vision_model = model
     ToMeVisionTransformer = make_tome_class(vision_model.__class__)
 
@@ -128,14 +128,15 @@ def patch_openclip(model, trace_source: bool = False, prop_attn: bool = True):
     }
 
     for i, resblock in enumerate(vision_model.encoder.layers):
-        resblock.__class__ = ToMeResidualAttentionBlock
-        resblock._tome_info = vision_model._tome_info
+        if i > start_idx and i < len(vision_model.encoder.layers) - end_idx :
+            resblock.__class__ = ToMeResidualAttentionBlock
+            resblock._tome_info = vision_model._tome_info
 
-        attn = ToMeAttention(
-            resblock.self_attn.q_proj.in_features,
-            resblock.self_attn.num_heads,
-            qkv_bias=True
-        )
-        _, device = convert_attention_block(resblock.self_attn, attn)
-        attn = attn.to(dtype=resblock.self_attn.q_proj.weight.dtype, device=device)
-        resblock.self_attn = attn
+            attn = ToMeAttention(
+                resblock.self_attn.q_proj.in_features,
+                resblock.self_attn.num_heads,
+                qkv_bias=True
+            )
+            _, device = convert_attention_block(resblock.self_attn, attn)
+            attn = attn.to(dtype=resblock.self_attn.q_proj.weight.dtype, device=device)
+            resblock.self_attn = attn
